@@ -1,4 +1,4 @@
-export function createInvitationMusic(audio, controls) {
+export function createInvitationMusic(audio, controls, page = document, lifecycle = window) {
   const button = controls.querySelector('button');
   const label = controls.querySelector('.music-label');
   const status = controls.querySelector('.music-status');
@@ -6,6 +6,8 @@ export function createInvitationMusic(audio, controls) {
   let userPaused = false;
   let pending = false;
   let request = 0;
+  let pageHidden = false;
+  const isHidden = () => page.hidden || pageHidden;
 
   // The audio asset already starts at 0:20 of the original song.
   audio.loop = true;
@@ -31,7 +33,22 @@ export function createInvitationMusic(audio, controls) {
     sync();
   }
 
+  function suspend() {
+    if (opened) userPaused = true;
+    pause();
+  }
+
+  page.addEventListener('visibilitychange', () => {
+    if (page.hidden) suspend();
+  });
+  lifecycle.addEventListener('pagehide', () => {
+    pageHidden = true;
+    suspend();
+  });
+  lifecycle.addEventListener('pageshow', () => { pageHidden = false; });
+
   async function play() {
+    if (isHidden()) { suspend(); return; }
     const currentRequest = ++request;
     pending = true;
     status.hidden = true;
@@ -65,7 +82,7 @@ export function createInvitationMusic(audio, controls) {
   });
 
   audio.addEventListener('playing', () => {
-    if (!opened) { pause(); return; }
+    if (!opened || isHidden()) { pause(); return; }
     pending = false;
     status.hidden = true;
     sync();

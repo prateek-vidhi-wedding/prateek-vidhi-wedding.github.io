@@ -33,9 +33,12 @@ function setup() {
     hidden: true,
     querySelector: selector => ({ button, '.music-label': label, '.music-status': status })[selector],
   };
-  const music = createInvitationMusic(audio, controls);
+  const page = new EventTarget();
+  page.hidden = false;
+  const lifecycle = new EventTarget();
+  const music = createInvitationMusic(audio, controls, page, lifecycle);
   const click = () => button.dispatchEvent(new Event('click'));
-  return { audio, label, status, controls, music, attributes, click };
+  return { audio, label, status, controls, music, attributes, click, page, lifecycle };
 }
 
 test('music waits for opening and calls play synchronously within that interaction', async () => {
@@ -124,4 +127,48 @@ test('a failed audio load can be retried from the music control', async () => {
   assert.equal(audio.loadCalls, 1);
   assert.equal(audio.paused, false);
   assert.equal(status.hidden, true);
+});
+
+test('switching tabs pauses music and returning requires an explicit play', async () => {
+  const { audio, music, page, click, label } = setup();
+  await music.open();
+  audio.currentTime = 32;
+  page.hidden = true;
+  page.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(audio.paused, true);
+  assert.equal(label.textContent, 'Play music');
+  click();
+  assert.equal(audio.paused, true);
+  page.hidden = false;
+  page.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(audio.paused, true);
+  click();
+  assert.equal(audio.paused, false);
+  assert.equal(audio.currentTime, 32);
+});
+
+test('leaving the page pauses music and a restored page stays silent', async () => {
+  const { audio, music, lifecycle, click } = setup();
+  await music.open();
+  lifecycle.dispatchEvent(new Event('pagehide'));
+  assert.equal(audio.paused, true);
+  lifecycle.dispatchEvent(new Event('pageshow'));
+  assert.equal(audio.paused, true);
+  click();
+  assert.equal(audio.paused, false);
+});
+
+test('late playback cannot start music after the tab becomes hidden', async () => {
+  const { audio, music, page, label } = setup();
+  let finish;
+  audio.play = () => new Promise(resolve => { finish = resolve; });
+  const opening = music.open();
+  page.hidden = true;
+  page.dispatchEvent(new Event('visibilitychange'));
+  audio.paused = false;
+  audio.dispatchEvent(new Event('playing'));
+  finish();
+  await opening;
+  assert.equal(audio.paused, true);
+  assert.equal(label.textContent, 'Play music');
 });
