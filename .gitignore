@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.env.*
+node_modules/
+rsvp-*.json
+*.log
+
+# Local artwork notes and unused portrait alternatives.
+ARTWORK.md
+assets/prateek-vidhi-illustration-v2.png
+assets/prateek-vidhi-hair-option.png
